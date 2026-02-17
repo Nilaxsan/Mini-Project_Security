@@ -8,11 +8,14 @@ using UniTutor.DTO;
 using Microsoft.EntityFrameworkCore;
 using UniTutor.Repository;
 using System.Xml.Linq;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace UniTutor.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "Student,Admin")]
     public class TodoItemController : ControllerBase
     {
         private readonly ITodoItem _todoItem;
@@ -23,70 +26,71 @@ namespace UniTutor.Controllers
             _todoItem = todoItem;
             _emailService = emailService;
         }
+        private bool IsOwnerOrAdmin(int requestedId, string userType)
+        {
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (role == "Admin")
+                return true;
+
+            if (role == userType && currentUserId == requestedId.ToString())
+                return true;
+
+            return false;
+        }
+
 
         // GET: api/Todos/{studentId}
         [HttpGet("student/{studentId}")]
         public async Task<ActionResult<IEnumerable<TodoItem>>> GetTodosByStudentId(int studentId)
         {
+            if (!IsOwnerOrAdmin(studentId, "Student"))
+                return Forbid("You cannot access another student's todos.");
+
             var todos = await _todoItem.GetByStudentIdAsync(studentId);
-            
             return Ok(todos);
         }
+
 
         //get all todos by tutorId
         [HttpGet("tutor/{tutorId}")]
         public async Task<ActionResult<IEnumerable<TodoItem>>> GetTodosByTutorId(int tutorId)
         {
+            if (!IsOwnerOrAdmin(tutorId, "Tutor"))
+                return Forbid("You cannot access another tutor's todos.");
+
             var todos = await _todoItem.GetByTutorIdAsync(tutorId);
             return Ok(todos);
         }
+
 
         [HttpPost("{usertype}/{id}")]
         public async Task<ActionResult<TodoItem>> PostTodo(string usertype, int id, TodoItemDto todoItemDto)
         {
             if (!ModelState.IsValid)
-            {
                 return BadRequest(ModelState);
-            }
 
-            try
+            if (!IsOwnerOrAdmin(id, usertype))
+                return Forbid("You cannot create todo for another user.");
+
+            var todoItem = new TodoItem
             {
-                var todoItem = new TodoItem
-                {
-                    text = todoItemDto.text,
-                    isCompleted = false
-                };
+                text = todoItemDto.text,
+                isCompleted = false
+            };
 
-                if (usertype == "Student")
-                {
-                    todoItem.studentId = id;
-                }
-                else if (usertype == "Tutor")
-                {
-                    todoItem.tutorId = id;
-                }
-                else
-                {
-                    return BadRequest("Invalid usertype. Expected 'student' or 'tutor'.");
-                }
+            if (usertype == "Student")
+                todoItem.studentId = id;
+            else if (usertype == "Tutor")
+                todoItem.tutorId = id;
+            else
+                return BadRequest("Invalid usertype.");
 
-                var newTodo = await _todoItem.CreateAsync(todoItem);
-                return CreatedAtAction(nameof(GetTodos), new { id = newTodo._id }, newTodo);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = ex.Message, stackTrace = ex.StackTrace });
-            }
+            var newTodo = await _todoItem.CreateAsync(todoItem);
+
+            return CreatedAtAction(nameof(GetTodos), new { id = newTodo._id }, newTodo);
         }
-        //[HttpPost("create/{Id}/{usertype}")]
-        //public async Task<IActionResult> CreateStudentComment(int Id, string usertype, [FromBody] TodoDto todoDto)
-        //{
-
-
-        //    await _todoItem.CreateAsync(todoDto.text, Id, usertype);
-
-        //    return Ok();
-        //}
 
 
         // GET: api/Todos
@@ -102,14 +106,27 @@ namespace UniTutor.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTodoItem(int id)
         {
-            var deleted = await _todoItem.DeleteAsync(id);
-            if (!deleted)
-            {
+            var todoItem = await _todoItem.GetByIdAsync(id);
+
+            if (todoItem == null)
                 return NotFound();
-            }
+
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            bool isOwner =
+                (role == "Student" && todoItem.studentId.ToString() == currentUserId) ||
+                (role == "Tutor" && todoItem.tutorId.ToString() == currentUserId) ||
+                (role == "Admin");
+
+            if (!isOwner)
+                return Forbid("You cannot delete this todo.");
+
+            await _todoItem.DeleteAsync(id);
 
             return NoContent();
         }
+
 
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTodoStatus(int id)
@@ -117,26 +134,25 @@ namespace UniTutor.Controllers
             var todoItem = await _todoItem.GetByIdAsync(id);
 
             if (todoItem == null)
-            {
                 return NotFound();
-            }
-            if (todoItem.isCompleted)
-            {
-                todoItem.isCompleted = false;
-                await _todoItem.UpdateAsync(todoItem);
-            }
-            else
-            {
-                todoItem.isCompleted = true;
-                await _todoItem.UpdateAsync(todoItem);
 
-            }
-            // Update the status to completed
-            
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            
+            bool isOwner =
+                (role == "Student" && todoItem.studentId.ToString() == currentUserId) ||
+                (role == "Tutor" && todoItem.tutorId.ToString() == currentUserId) ||
+                (role == "Admin");
+
+            if (!isOwner)
+                return Forbid("You cannot modify this todo.");
+
+            todoItem.isCompleted = !todoItem.isCompleted;
+
+            await _todoItem.UpdateAsync(todoItem);
 
             return Ok();
         }
+
     }
 }

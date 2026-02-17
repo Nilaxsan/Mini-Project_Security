@@ -20,25 +20,25 @@ using AutoMapper;
 
 namespace UniTutor.Controllers
 {
-    
+
     [Route("api/[controller]")]
     [ApiController]
     public class StudentController : ControllerBase
     {
         IStudent _student;
         private readonly IConfiguration _config;
-        private readonly IMapper _mapper; 
+        private readonly IMapper _mapper;
         private readonly IEmailService _emailService;
-       
 
 
-        public StudentController(IStudent student,IConfiguration config,IMapper mapper,IEmailService emailService)
+
+        public StudentController(IStudent student, IConfiguration config, IMapper mapper, IEmailService emailService)
         {
             _config = config;
             _student = student;
             _mapper = mapper;
             _emailService = emailService;
-            
+
         }
         [HttpPost("create")]
         public async Task<IActionResult> CreateAccountAsync([FromBody] StudentRegistration studentDto)
@@ -131,13 +131,22 @@ namespace UniTutor.Controllers
         [HttpGet("details/{id}")]
         public IActionResult GetAccountById(int id)
         {
-            var student = _student.GetById(id);
-            if (student == null)
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (role != "Admin" && currentUserId != id.ToString())
             {
-                return NotFound();
+                return Forbid("You are not authorized to access this profile.");
             }
+
+            var student = _student.GetById(id);
+
+            if (student == null)
+                return NotFound();
+
             return Ok(student);
         }
+
 
 
         [HttpPost("login")]
@@ -148,7 +157,7 @@ namespace UniTutor.Controllers
 
             var result = _student.Login(email, password);
             if (!result)
-            { 
+            {
                 return Unauthorized("Invalid email or password");
             }
             var loggedInStudent = _student.GetByMail(email);
@@ -162,31 +171,39 @@ namespace UniTutor.Controllers
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var tokenDescriptor = new SecurityTokenDescriptor
-                {
-                    Subject = new ClaimsIdentity(new Claim[]
+            {
+                Subject = new ClaimsIdentity(new Claim[]
                     {
                  new Claim(ClaimTypes.Name, email),  // Email claim
                  new Claim(ClaimTypes.NameIdentifier, loggedInStudent._id.ToString()),  // Student ID claim
                  new Claim(ClaimTypes.GivenName, loggedInStudent.firstName),  // Student name claim
                  new Claim(ClaimTypes.Role, "Student")
                     }),
-                    Expires = DateTime.UtcNow.AddDays(30),
-                    SigningCredentials = credentials
-                };
+                Expires = DateTime.UtcNow.AddDays(30),
+                SigningCredentials = credentials
+            };
 
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var token = tokenHandler.CreateToken(tokenDescriptor);
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var token = tokenHandler.CreateToken(tokenDescriptor);
 
-                return Ok(new { token = tokenHandler.WriteToken(token), Id = loggedInStudent._id });
+            return Ok(new { token = tokenHandler.WriteToken(token), Id = loggedInStudent._id });
         }
-            
 
-            
-        
+
+
+
 
         [HttpPut("ProfileUpdate{id}")]
         public async Task<IActionResult> UpdateStudent(int id, [FromBody] UpdateStudentDto updateStudentDto)
         {
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (role != "Admin" && currentUserId != id.ToString())
+            {
+                return Forbid("You cannot update another student's profile.");
+            }
+
             if (id != updateStudentDto._id)
             {
                 return BadRequest();
@@ -195,9 +212,7 @@ namespace UniTutor.Controllers
             var student = await _student.GetByIdAsync(id);
 
             if (student == null)
-            {
                 return NotFound();
-            }
 
             student.firstName = updateStudentDto.firstName;
             student.lastName = updateStudentDto.lastName;
@@ -216,43 +231,27 @@ namespace UniTutor.Controllers
             return NoContent();
         }
 
+
         [HttpGet("{studentId}")]
         public async Task<IActionResult> GetStudentDashboardDetails(int studentId)
         {
-            var studentDetails = await _student.GetStudentDashboardDetails(studentId);
-            if (studentDetails == null)
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (role != "Admin" && currentUserId != studentId.ToString())
             {
-                return NotFound();
+                return Forbid("Access denied.");
             }
+
+            var studentDetails = await _student.GetStudentDashboardDetails(studentId);
+
+            if (studentDetails == null)
+                return NotFound();
+
             return Ok(studentDetails);
         }
-        //[HttpPost("requesttutor")]
-        //public IActionResult requesttutor([FromBody] Request request)
-        //{
-        //    var result = _student.CreateRequest(request);
-        //    if (result)
-        //    {
-        //        return Ok(result);
-        //    }
-        //    else
-        //    {
-        //        return BadRequest();
-        //    }
-        //}
 
-        //[HttpDelete("deleterequest")]
-        //public IActionResult deleterequest([FromBody] Request request)
-        //{
-        //    var result = _student.DeleteRequest(request);
-        //    if (result)
-        //    {
-        //        return Ok(result);
-        //    }
-        //    else
-        //    {
-        //        return BadRequest();
-        //    }
-        //}
+
 
 
 
