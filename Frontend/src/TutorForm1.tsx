@@ -122,6 +122,8 @@ const TutorForm1 = () => {
   const [isLoading, setIsLoading] = React.useState(false);
 
   const navigate = useNavigate();
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".pdf"];
+
 
   const {
     control,
@@ -161,50 +163,86 @@ const TutorForm1 = () => {
     }
   };
 
-  // const handleMedium = (medium: string) => (event: any) => {
-  //   if (event.target.checked) {
-  //     setValue("medium", [...watchMedium, medium]);
-  //   } else {
-  //     setValue(
-  //       "medium",
-  //       watchMedium.filter((m) => m !== medium)
-  //     );
-  //   }
-  // };
 
-  const handleUploadCv = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log(event.target.files?.[0]);
-    if (event.target.files === null) return;
-    const file = event.target.files[0];
-    if (file === undefined) return;
-    const imgRef = ref(storage2, "/cv/" + file?.name);
-    const snapshot = uploadBytes(imgRef, file).then(
-      async (snapshot: UploadResult) => {
-        const url = await getDownloadURL(snapshot.ref);
-        console.log("URL = ", url);
-        setValue("cv", url);
-        toast.success("File uploaded successfully");
+const handleUploadCv = async (
+  event: React.ChangeEvent<HTMLInputElement>
+) => {
+  if (!event.target.files) return;
+
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const allowedExtensions = [".pdf"];
+  const fileExtension = file.name
+    .substring(file.name.lastIndexOf("."))
+    .toLowerCase();
+
+  if (!allowedExtensions.includes(fileExtension)) {
+    toast.error("Only PDF files are allowed for CV.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await axios.post(
+      "http://localhost:5025/api/Analytics/UploadProfileImage",
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
       }
     );
-  };
 
-  const handleUploadId = (event: React.ChangeEvent<HTMLInputElement>) => {
-    // TODO: Implement file upload for ID
-    console.log(event.target.files?.[0]);
-    if (event.target.files === null) return;
-    const file = event.target.files[0];
-    if (file === undefined) return;
-    const imgRef = ref(storage2, "/ids/" + file?.name);
-    const snapshot = uploadBytes(imgRef, file).then(
-      async (snapshot: UploadResult) => {
-        const url = await getDownloadURL(snapshot.ref);
-        console.log("URL = ", url);
-        setValue("universityID", url);
-        toast.success("File uploaded successfully");
-        
+    const url = response.data.url;
+    setValue("cv", url);
+
+    toast.success("CV uploaded securely!");
+  } catch (error) {
+    console.error("Upload failed:", error);
+    toast.error("CV upload failed.");
+  }
+};
+
+const handleUploadId = async (
+  event: React.ChangeEvent<HTMLInputElement>
+) => {
+  if (!event.target.files) return;
+
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const fileExtension = file.name
+    .substring(file.name.lastIndexOf("."))
+    .toLowerCase();
+
+  if (!allowedExtensions.includes(fileExtension)) {
+    toast.error("Invalid file type.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await axios.post(
+      "http://localhost:5025/api/Analytics/UploadProfileImage",
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
       }
     );
-  };
+
+    const url = response.data.url;
+    setValue("universityID", url);
+
+    toast.success("ID uploaded securely!");
+  } catch (error) {
+    console.error("Upload failed:", error);
+    toast.error("ID upload failed.");
+  }
+};
+
 
   return (
     <ThemeProvider theme={defaultTheme}>
