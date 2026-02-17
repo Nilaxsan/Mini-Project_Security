@@ -1,4 +1,7 @@
+using AutoMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -6,17 +9,15 @@ using Microsoft.OpenApi.Models;
 using Stripe;
 using System;
 using System.Text;
+using UniTutor;
+using UniTutor.Controllers;
 using UniTutor.DataBase;
 using UniTutor.Interface;
 using UniTutor.Mapping;
-using UniTutor.Repository;
-using UniTutor.Services;
-using AutoMapper;
-using UniTutor.Controllers;
-using UniTutor.Respository;
-using UniTutor;
 using UniTutor.Model;
-using Microsoft.AspNetCore.Http;
+using UniTutor.Repository;
+using UniTutor.Respository;
+using UniTutor.Services;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -72,6 +73,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddFixedWindowLimiter("LoginPolicy", opt =>
+    {
+        opt.PermitLimit = 10; // Allow 10 requests
+        opt.Window = TimeSpan.FromMinutes(1); // Per 1 minute
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 2;
+    });
+});
 
 // Add Email Configuration
 var emailConfig = builder.Configuration

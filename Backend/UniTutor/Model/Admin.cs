@@ -17,6 +17,9 @@ namespace UniTutor.Model
 
         [Required]
         public string password { get; set; }
+
+        public int AccessFailedCount { get; set; } = 0;
+        public DateTime? LockoutEnd { get; set; }
     }
 }
 

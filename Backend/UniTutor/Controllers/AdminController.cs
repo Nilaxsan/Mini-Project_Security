@@ -69,32 +69,19 @@ namespace UniTutor.Controllers
         [HttpPost("adminLogin")]
         public IActionResult AdminLogin([FromBody] LoginRequest adminLogin)
         {
-            var result = _admin.Login(adminLogin.Email, adminLogin.Password);
-            if (result)
+            // Call the updated Login method
+            var loginStatus = _admin.Login(adminLogin.Email, adminLogin.Password);
+
+            if (loginStatus == LoginStatus.LockedOut)
             {
-                // Retrieve admin details from the database
+                // Return 423 Locked or 429 Too Many Requests
+                return StatusCode(423, new { message = "Account is locked due to multiple failed attempts. Please try again in 15 minutes." });
+            }
+            else if (loginStatus == LoginStatus.Success)
+            {
+                // ... (Keep your existing token generation logic here) ...
                 var loggedInAdmin = _admin.GetAdminByEmail(adminLogin.Email);
-
-                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-                var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-                var tokenDescriptor = new SecurityTokenDescriptor
-                {
-                    Subject = new ClaimsIdentity(new Claim[]
-                    {
-                new Claim(ClaimTypes.Name, adminLogin.Email),  // Email claim
-                new Claim(ClaimTypes.NameIdentifier, loggedInAdmin._id.ToString()),  // Admin ID claim
-                new Claim(ClaimTypes.GivenName, loggedInAdmin.Name),  // Admin name claim
-                new Claim(ClaimTypes.Role, "Student")
-
-                    }),
-                    Expires = DateTime.UtcNow.AddDays(30),
-                    SigningCredentials = credentials
-                };
-
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var token = tokenHandler.CreateToken(tokenDescriptor);
-
+                // [Your existing JWT Token Generation Code]
                 return Ok(new { token = tokenHandler.WriteToken(token), Id = loggedInAdmin._id });
             }
             else
@@ -102,6 +89,8 @@ namespace UniTutor.Controllers
                 return Unauthorized("Invalid email or password");
             }
         }
+
+
         [HttpPost("relogin")]
         public async Task<IActionResult> AdminLogin([FromBody] AdminLoginDto loginDto)
         {

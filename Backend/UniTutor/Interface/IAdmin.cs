@@ -32,7 +32,8 @@ namespace UniTutor.Interface
         //Task SendEmailAsync(SendReportEmailDto emailDto);
 
         bool CreateAdmin(Admin admin);
-        bool Login(string email, string password);
+        //bool Login(string email, string password);
+        LoginStatus Login(string email, string password);
         Task<bool> AdminLoginAsync(AdminLoginDto loginDto);
         bool IsAdmin(Admin admin);
         ClaimsPrincipal ValidateToken(string token);
