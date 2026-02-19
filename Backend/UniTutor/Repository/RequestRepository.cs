@@ -228,6 +228,13 @@ namespace UniTutor.Repository
                                  .Where(sr => sr.tutorId == tutorId)
                                  .CountAsync();
         }
+        public async Task<bool> RequestExists(int studentId, int subjectId)
+        {
+            return await _DBcontext.Requests
+                .AnyAsync(r => r.studentId == studentId
+                            && r.subjectId == subjectId
+                            && r.status == "PENDING");
+        }
 
         public async Task<int> GetMyStudentCount(int tutorId)
         {

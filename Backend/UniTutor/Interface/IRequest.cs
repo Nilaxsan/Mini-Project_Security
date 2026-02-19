@@ -10,7 +10,7 @@ namespace UniTutor.Interface
         Task<IEnumerable<Request>> GetByStudentId(int studentId);
         Task<IEnumerable<Request>> GetByTutorId(int tutorId);
         Task<Request> Create(RequestDto request);
-        
+        Task<bool> RequestExists(int studentId, int subjectId);
         Task<Request> Delete(int id);
 
         

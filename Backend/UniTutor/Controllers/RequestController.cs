@@ -31,27 +31,46 @@ namespace UniTutor.Controllers
             _subject = subject;
         }
 
-       
-       // POST: api/SubjectRequests/request
+
         [HttpPost("request")]
-        public async Task<ActionResult<RequestDto>> CreateSubjectRequest([FromBody] RequestDto request)
+        public async Task<ActionResult<RequestDto>> CreateSubjectRequest([FromBody] RequestDto requestDto)
         {
             if (!ModelState.IsValid)
-            {
                 return BadRequest(ModelState);
-            }
+
             try
             {
-                var newRequest = await _request.Create(request);
-                return CreatedAtAction(nameof(GetSubjectRequestById), new { id = newRequest.subjectId }, newRequest);
+                var student = await _student.GetByIdAsync(requestDto.studentId);
+                if (student == null)
+                    return NotFound("Student not found.");
+
+                var tutor = await _tutor.GetByIdAsync(requestDto.tutorId);
+                if (tutor == null)
+                    return NotFound("Tutor not found.");
+
+                var subject = await _subject.GetSubjectById(requestDto.subjectId);
+                if (subject == null)
+                    return NotFound("Subject not found.");
+
+                var alreadyExists = await _request.RequestExists(requestDto.studentId, requestDto.subjectId);
+                if (alreadyExists)
+                    return BadRequest("Request already exists for this subject.");
+
+                var newRequest = await _request.Create(requestDto);
+
+                return CreatedAtAction(
+                    nameof(GetSubjectRequestById),
+                    new { id = newRequest._id },  
+                    newRequest
+                );
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = ex.Message, stackTrace = ex.StackTrace });
+                return StatusCode(500, new { message = ex.Message });
             }
         }
 
-       // GET: api/SubjectRequests/student/{id}
+        // GET: api/SubjectRequests/student/{id}
         [HttpGet("student/{id}")]
         public async Task<ActionResult<IEnumerable<Request>>> GetSubjectRequestsByStudentId(int id)
         {
