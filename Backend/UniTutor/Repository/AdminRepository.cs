@@ -244,65 +244,62 @@ namespace UniTutor.Repository
             }
         }
 
-        public bool Login(string email, string password)
-        {
-            var admin = _DBcontext.Admin.FirstOrDefault(a => a.Email == email);
-
-            if (admin == null)
-            {
-                return false;
-            }
-
-            PasswordHash ph = new PasswordHash();
-            return ph.VerifyPassword(password, admin.password);
-        }
-
-        //public LoginStatus Login(string email, string password)
+        //public bool Login(string email, string password)
         //{
         //    var admin = _DBcontext.Admin.FirstOrDefault(a => a.Email == email);
 
         //    if (admin == null)
         //    {
-        //        return LoginStatus.InvalidCredentials;
-        //    }
-
-        //    // 1. Check if the account is currently locked
-        //    if (admin.LockoutEnd.HasValue && admin.LockoutEnd.Value > DateTime.UtcNow)
-        //    {
-        //        return LoginStatus.LockedOut;
+        //        return false;
         //    }
 
         //    PasswordHash ph = new PasswordHash();
-        //    bool isValidPassword = ph.VerifyPassword(password, admin.password);
-
-        //    if (isValidPassword)
-        //    {
-        //        // 2. SUCCESS: Reset counters
-        //        if (admin.AccessFailedCount > 0 || admin.LockoutEnd != null)
-        //        {
-        //            admin.AccessFailedCount = 0;
-        //            admin.LockoutEnd = null;
-        //            _DBcontext.SaveChanges();
-        //        }
-        //        return LoginStatus.Success;
-        //    }
-        //    else
-        //    {
-        //        // 3. FAILURE: Increment counter and check threshold
-        //        admin.AccessFailedCount++;
-
-        //        if (admin.AccessFailedCount >= 5)
-        //        {
-        //            // Lock for 15 minutes
-        //            admin.LockoutEnd = DateTime.UtcNow.AddMinutes(15);
-        //            // Optional: Reset count here or keep it to track total failures
-        //            admin.AccessFailedCount = 0;
-        //        }
-
-        //        _DBcontext.SaveChanges();
-        //        return LoginStatus.InvalidCredentials;
-        //    }
+        //    return ph.VerifyPassword(password, admin.password);
         //}
+
+        public LoginStatus Login(string email, string password)
+        {
+            var admin = _DBcontext.Admin.FirstOrDefault(a => a.Email == email);
+
+            if (admin == null)
+            {
+                return LoginStatus.InvalidCredentials;
+            }
+
+            // Check if locked out
+            if (admin.LockoutEnd.HasValue && admin.LockoutEnd.Value > DateTime.UtcNow)
+            {
+                return LoginStatus.LockedOut;
+            }
+
+            PasswordHash ph = new PasswordHash();
+            bool isValidPassword = ph.VerifyPassword(password, admin.password);
+
+            if (isValidPassword)
+            {
+                // Reset counters on success
+                if (admin.AccessFailedCount > 0 || admin.LockoutEnd != null)
+                {
+                    admin.AccessFailedCount = 0;
+                    admin.LockoutEnd = null;
+                    _DBcontext.SaveChanges();
+                }
+                return LoginStatus.Success;
+            }
+            else
+            {
+                // Increment failures
+                admin.AccessFailedCount++;
+                if (admin.AccessFailedCount >= 5)
+                {
+                    admin.LockoutEnd = DateTime.UtcNow.AddMinutes(15);
+                    admin.AccessFailedCount = 0;
+                }
+                _DBcontext.SaveChanges();
+                return LoginStatus.InvalidCredentials;
+            }
+        }
+
 
         public async Task<bool> AdminLoginAsync(AdminLoginDto loginDto)
         {

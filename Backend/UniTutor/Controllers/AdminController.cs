@@ -69,40 +69,66 @@ namespace UniTutor.Controllers
         [HttpPost("adminLogin")]
         public IActionResult AdminLogin([FromBody] LoginRequest adminLogin)
         {
-            // Call the updated Login method
+            // Capture the enum result
             var loginStatus = _admin.Login(adminLogin.Email, adminLogin.Password);
 
             if (loginStatus == LoginStatus.LockedOut)
             {
-                // Return 423 Locked or 429 Too Many Requests
                 return StatusCode(423, new { message = "Account is locked due to multiple failed attempts. Please try again in 15 minutes." });
             }
             else if (loginStatus == LoginStatus.Success)
             {
-                // ... (Keep your existing token generation logic here) ...
+                // User authenticated successfully, generate token
                 var loggedInAdmin = _admin.GetAdminByEmail(adminLogin.Email);
-                // [Your existing JWT Token Generation Code]
+
+                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+                var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+                var tokenDescriptor = new SecurityTokenDescriptor
+                {
+                    Subject = new ClaimsIdentity(new Claim[]
+                    {
+                new Claim(ClaimTypes.Name, adminLogin.Email),
+                new Claim(ClaimTypes.NameIdentifier, loggedInAdmin._id.ToString()),
+                new Claim(ClaimTypes.GivenName, loggedInAdmin.Name),
+                new Claim(ClaimTypes.Role, "Admin")
+                    }),
+                    Expires = DateTime.UtcNow.AddDays(30),
+                    SigningCredentials = credentials
+                };
+
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var token = tokenHandler.CreateToken(tokenDescriptor);
+
                 return Ok(new { token = tokenHandler.WriteToken(token), Id = loggedInAdmin._id });
             }
             else
             {
-                return Unauthorized("Invalid email or password");
+                // InvalidCredentials falls here
+                return Unauthorized(new { message = "Invalid email or password" });
             }
         }
-
 
         [HttpPost("relogin")]
         public async Task<IActionResult> AdminLogin([FromBody] AdminLoginDto loginDto)
         {
-            var result =  _admin.Login(loginDto.Username, loginDto.Password);
+            // result is now a LoginStatus enum, not a boolean
+            var result = _admin.Login(loginDto.Username, loginDto.Password);
 
-            if (result)
+            if (result == LoginStatus.LockedOut)
+            {
+                // Return 423 to indicate the account is temporarily locked
+                return StatusCode(423, new { success = false, message = "Account is locked due to multiple failed attempts. Please try again in 15 minutes." });
+            }
+            else if (result == LoginStatus.Success)
             {
                 return Ok(new { success = true });
             }
 
+            // If result is LoginStatus.InvalidCredentials
             return Unauthorized(new { success = false, message = "Invalid login credentials" });
         }
+
         [HttpPost("Report/send-email")]
         public async Task<IActionResult> SendReportEmail([FromBody] SendReportEmailDto emailDto)
         {
