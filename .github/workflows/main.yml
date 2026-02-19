@@ -1,5 +1,6 @@
-name: SonarQube Analysis
+name: SonarCloud Analysis - Fullstack
 
+# Trigger on any push or pull request to any branch
 on:
   push:
     branches:
@@ -11,29 +12,53 @@ on:
 jobs:
   build-and-analyze:
     runs-on: ubuntu-latest
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v4
+      # 1️⃣ Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # needed for branch analysis
 
-      - uses: actions/setup-dotnet@v4
+      # 2️⃣ Setup Node.js for React frontend
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      # 3️⃣ Install frontend dependencies
+      - name: Install frontend
+        working-directory: ./Frontend
+        run: npm install
+
+      # 4️⃣ Build React frontend
+      - name: Build React frontend
+        working-directory: ./Frontend
+        run: npm run build
+
+      # 5️⃣ Setup .NET 8 for backend
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-      - run: dotnet tool install --global dotnet-sonarscanner
+      # 6️⃣ Install SonarScanner CLI
+      - name: Install SonarScanner
+        run: dotnet tool install --global dotnet-sonarscanner
 
+      # 7️⃣ SonarScanner Begin
       - name: SonarScanner Begin
         run: |
           dotnet sonarscanner begin \
             /k:"YOUR_PROJECT_KEY" \
             /o:"YOUR_ORG" \
-            /d:sonar.login="$SONAR_TOKEN" \
             /d:sonar.branch.name="${{ github.ref_name }}"
 
-      - run: dotnet build --no-restore
+      # 8️⃣ Build .NET backend
+      - name: Build .NET backend
+        working-directory: ./Backend
+        run: dotnet build --no-restore
 
+      # 9️⃣ SonarScanner End
       - name: SonarScanner End
-        run: dotnet sonarscanner end /d:sonar.login="$SONAR_TOKEN"
+        run: dotnet sonarscanner end
