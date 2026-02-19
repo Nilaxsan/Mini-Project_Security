@@ -9,28 +9,31 @@ on:
       - '**'
 
 jobs:
-  build:
+  build-and-analyze:
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-      - name: Install SonarScanner
-        run: dotnet tool install --global dotnet-sonarscanner
+      - run: dotnet tool install --global dotnet-sonarscanner
 
-      - name: SonarQube Scan
+      - name: SonarScanner Begin
         run: |
           dotnet sonarscanner begin \
             /k:"YOUR_PROJECT_KEY" \
             /o:"YOUR_ORG" \
-            /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
-          dotnet build
-          dotnet sonarscanner end \
-            /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
+            /d:sonar.login="$SONAR_TOKEN" \
+            /d:sonar.branch.name="${{ github.ref_name }}"
+
+      - run: dotnet build --no-restore
+
+      - name: SonarScanner End
+        run: dotnet sonarscanner end /d:sonar.login="$SONAR_TOKEN"
